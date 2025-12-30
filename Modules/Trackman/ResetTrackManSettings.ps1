@@ -1,28 +1,20 @@
 <#
 .SYNOPSIS
   Reset TrackMan settings (current user) and remove DeviceId.
-
-.DESCRIPTION
-  Deletes these folders if they exist:
-    - %LOCALAPPDATA%\TrackMan
-    - %USERPROFILE%\AppData\LocalLow\TrackMan
-    - %APPDATA%\TrackMan
-
-  And deletes:
-    - C:\ProgramData\Trackman\DeviceId.txt
-
-  Supports -WhatIf / -Confirm.
-
-.NOTES
-  Admin is recommended for the ProgramData file.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param()
 
-# ---------------------------
-# Helper functions
-# ---------------------------
+function Get-ConfirmText {
+@"
+This will delete all settings in TrackMan.
+You will have to login again.
+Please make sure you have exited from TPS.
+
+Do you want to continue?
+"@
+}
 
 function Test-IsAdmin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -42,17 +34,12 @@ function Write-Log {
 function Get-TrackManPathsForCurrentUser {
     $local    = Join-Path $env:LOCALAPPDATA "TrackMan"
     $roaming  = Join-Path $env:APPDATA "TrackMan"
-
-    # LocalLow isn’t an env var; it sits next to Local under the user profile.
     $localLow = Join-Path $env:USERPROFILE "AppData\LocalLow\TrackMan"
-
     return @($local, $localLow, $roaming)
 }
 
 function Remove-FolderIfExists {
-    param(
-        [Parameter(Mandatory)] [string]$Path
-    )
+    param([Parameter(Mandatory)] [string]$Path)
 
     if (-not (Test-Path -LiteralPath $Path)) {
         Write-Log "Not found (skip): $Path"
@@ -70,9 +57,7 @@ function Remove-FolderIfExists {
 }
 
 function Remove-FileIfExists {
-    param(
-        [Parameter(Mandatory)] [string]$Path
-    )
+    param([Parameter(Mandatory)] [string]$Path)
 
     if (-not (Test-Path -LiteralPath $Path)) {
         Write-Log "Not found (skip): $Path"
@@ -89,11 +74,7 @@ function Remove-FileIfExists {
     }
 }
 
-# ---------------------------
-# Run function (task entrypoint)
-# ---------------------------
-
-function Run-ResetTrackManSettings {
+function RunModule {
     Write-Log "Task: Reset TrackMan Settings - started"
 
     if (-not (Test-IsAdmin)) {
@@ -101,12 +82,10 @@ function Run-ResetTrackManSettings {
         Start-Process powershell.exe `
             -Verb RunAs `
             -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-        exit
+        return
     }
 
-
-    $paths = Get-TrackManPathsForCurrentUser
-    foreach ($p in $paths) {
+    foreach ($p in (Get-TrackManPathsForCurrentUser)) {
         Remove-FolderIfExists -Path $p
     }
 
@@ -114,9 +93,3 @@ function Run-ResetTrackManSettings {
 
     Write-Log "Task: Reset TrackMan Settings - finished"
 }
-
-# ---------------------------
-# Main
-# ---------------------------
-
-Run-ResetTrackManSettings
